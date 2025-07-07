@@ -149,6 +149,7 @@ export class UnifiedMexcServiceV2
       price: params.price,
       stopPrice: params.stopPrice,
       timeInForce: params.timeInForce,
+      paperTrade: params.paperTrade, // Pass through the paper trade parameter
     });
 
     // Transform result to match expected interface

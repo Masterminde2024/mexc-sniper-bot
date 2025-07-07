@@ -1,7 +1,6 @@
 import { config } from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import tsconfigPaths from 'vite-tsconfig-paths';
 import { defineConfig } from 'vitest/config';
 
 // ES module __dirname equivalent
@@ -22,7 +21,6 @@ if (!process.env.DATABASE_URL) {
  * Optimized for speed and reduced strictness
  */
 export default defineConfig({
-  plugins: [tsconfigPaths()],
   test: {
     // Environment setup - Use jsdom for React component tests
     environment: 'jsdom',
@@ -55,9 +53,9 @@ export default defineConfig({
     ],
     
     // Fast timeout configuration
-    testTimeout: 5000, // Reduced to 5 seconds
-    hookTimeout: 10000, // Increased for cleanup
-    teardownTimeout: 10000, // Increased for cleanup
+    testTimeout: 30000, // Reduced to 30 seconds
+    hookTimeout: 60000, // Increased for cleanup
+    teardownTimeout: 30000, // Increased for cleanup
     
     // No retries for speed
     retry: 0,
@@ -74,13 +72,14 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       VITEST: 'true',
+      FORCE_MOCK_DB: 'false',
+      USE_REAL_DATABASE: 'true',
       OPENAI_API_KEY: 'test-openai-key-vitest',
       MEXC_API_KEY: 'test-mexc-key-vitest',
       MEXC_SECRET_KEY: 'test-mexc-secret-vitest',
       MEXC_BASE_URL: 'https://api.mexc.com',
       ENCRYPTION_MASTER_KEY: 'dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcwo=',
       DATABASE_URL: process.env.DATABASE_URL,
-      FORCE_MOCK_DB: process.env.FORCE_MOCK_DB || 'true', // Force mocks for speed
       SKIP_AUTH_IN_TESTS: 'true',
       ENABLE_DEBUG_LOGGING: 'false',
     },
@@ -103,22 +102,30 @@ export default defineConfig({
     
     // Performance-optimized settings - disable most checks
     logHeapUsage: false,
-    isolate: false,
+    isolate: true,
     sequence: {
-      concurrent: true, // Enable for speed
+      concurrent: false,
       shuffle: false,
     },
     
     // Single thread for simplicity
-    pool: 'threads',
+    pool: 'forks',
     poolOptions: {
-      threads: {
-        maxThreads: 1,
-        minThreads: 1,
+      forks: {
+        maxForks: 1,
+        minForks: 1,
+        isolate: true,
       },
     },
     maxConcurrency: 1,
     fileParallelism: false
+  },
+  
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '~': path.resolve(__dirname, './'),
+    },
   },
   
   // Build configuration for testing - relaxed

@@ -179,7 +179,12 @@ export class CoreTradingService extends EventEmitter<CoreTradingEvents> {
           timestamp: new Date().toISOString(),
         }),
         getActivePositions: () => new Map<string, Position>(),
-        createPositionEntry: async (tradeParams, symbol, stopLoss?, takeProfit?) => ({
+        createPositionEntry: async (
+          tradeParams,
+          symbol,
+          stopLoss?,
+          takeProfit?
+        ) => ({
           id: `${symbol}-${Date.now()}`,
           symbol: symbol,
           side: tradeParams.side || "BUY",

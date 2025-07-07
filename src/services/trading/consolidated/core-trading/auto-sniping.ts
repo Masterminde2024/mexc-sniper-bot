@@ -689,7 +689,7 @@ export class AutoSnipingModule {
           entryStrategy: snipeTargets.entryStrategy,
           maxRetries: snipeTargets.maxRetries,
           currentRetries: snipeTargets.currentRetries,
-          takeProfitCustom: snipeTargets.takeProfitCustom
+          takeProfitCustom: snipeTargets.takeProfitCustom,
         })
         .from(snipeTargets)
         .where(

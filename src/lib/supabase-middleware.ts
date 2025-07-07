@@ -9,14 +9,14 @@ export async function updateSession(request: NextRequest) {
   });
 
   // Bypass authentication in test environments
-  const isTestEnvironment = 
-    process.env.PLAYWRIGHT_TEST === 'true' ||
-    process.env.NODE_ENV === 'test' ||
-    request.headers.get('x-test-environment') ||
-    request.headers.get('user-agent')?.includes('Playwright');
+  const isTestEnvironment =
+    process.env.PLAYWRIGHT_TEST === "true" ||
+    process.env.NODE_ENV === "test" ||
+    request.headers.get("x-test-environment") ||
+    request.headers.get("user-agent")?.includes("Playwright");
 
   if (isTestEnvironment) {
-    console.log('Test environment detected, bypassing auth middleware');
+    console.log("Test environment detected, bypassing auth middleware");
     return response;
   }
 
