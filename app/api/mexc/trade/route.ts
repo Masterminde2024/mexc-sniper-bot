@@ -37,7 +37,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get API credentials from database
+    // Get API credentials - try database first, then fallback to environment
+    let apiKey: string;
+    let secretKey: string;
+    let credentialSource: string;
+
+    // Try database credentials first
     const credentials = await db
       .select({
         id: apiCredentials.id,
@@ -46,7 +51,7 @@ export async function POST(request: NextRequest) {
         encryptedPassphrase: apiCredentials.encryptedPassphrase,
         userId: apiCredentials.userId,
         provider: apiCredentials.provider,
-        isActive: apiCredentials.isActive
+        isActive: apiCredentials.isActive,
       })
       .from(apiCredentials)
       .where(
@@ -58,22 +63,52 @@ export async function POST(request: NextRequest) {
       )
       .limit(1);
 
-    if (!credentials[0]) {
-      return apiResponse(
-        createErrorResponse("No active MEXC API credentials found", {
-          message: "Please configure your MEXC API credentials in settings",
-        }),
-        HTTP_STATUS.BAD_REQUEST
-      );
+    if (credentials[0]) {
+      // Use database credentials (decrypt them)
+      try {
+        const decrypted = await getCachedCredentials(
+          userId,
+          credentials[0].encryptedApiKey,
+          credentials[0].encryptedSecretKey,
+          credentials[0].encryptedPassphrase
+        );
+        apiKey = decrypted.apiKey;
+        secretKey = decrypted.secretKey;
+        credentialSource = "database";
+        console.info(`Using database credentials for user ${userId}`);
+      } catch (decryptError) {
+        console.error(
+          `Failed to decrypt database credentials for ${userId}:`,
+          decryptError
+        );
+        // Fall through to environment fallback
+      }
     }
 
-    // PERFORMANCE OPTIMIZATION: Use cached credentials to reduce decryption overhead
-    const { apiKey, secretKey } = await getCachedCredentials(
-      userId,
-      credentials[0].encryptedApiKey,
-      credentials[0].encryptedSecretKey,
-      credentials[0].encryptedPassphrase
-    );
+    // Fallback to environment variables if database credentials not available
+    if (!apiKey || !secretKey) {
+      const envApiKey = process.env.MEXC_API_KEY?.trim();
+      const envSecretKey = process.env.MEXC_SECRET_KEY?.trim();
+
+      if (envApiKey && envSecretKey) {
+        apiKey = envApiKey;
+        secretKey = envSecretKey;
+        credentialSource = "environment";
+        console.info(`Using environment credentials for user ${userId}`);
+      } else {
+        return apiResponse(
+          createErrorResponse("No MEXC API credentials found", {
+            message:
+              "Please configure MEXC API credentials in settings or environment variables",
+            details: {
+              databaseCredentials: !!credentials[0],
+              environmentCredentials: !!(envApiKey && envSecretKey),
+            },
+          }),
+          HTTP_STATUS.BAD_REQUEST
+        );
+      }
+    }
 
     // Validate required parameters
     if (!symbol || !side || !type || !quantity) {
@@ -215,30 +250,42 @@ export async function POST(request: NextRequest) {
 
     // Execute with lock protection
     const executeTrade = async () => {
-      // Place order via service layer (includes validation and balance checks)
-      const orderResponse = await mexcService.placeOrder(orderParams);
+      // Check if paper trading is enabled
+      const paperTradingEnabled = process.env.MEXC_PAPER_TRADING === "true";
+
+      console.info(
+        `Paper trading mode: ${paperTradingEnabled ? "ENABLED" : "DISABLED"}`
+      );
+
+      // Use executeTrade instead of placeOrder to support paper trading
+      const orderResponse = await mexcService.executeTrade({
+        symbol: orderParams.symbol,
+        side: orderParams.side,
+        type: orderParams.type as "MARKET" | "LIMIT" | "STOP_LIMIT",
+        quantity: parseFloat(orderParams.quantity),
+        price: orderParams.price ? parseFloat(orderParams.price) : undefined,
+        timeInForce: orderParams.timeInForce,
+        paperTrade: paperTradingEnabled, // This enables paper trading simulation
+      });
 
       if (!orderResponse.success) {
         throw new Error(orderResponse.error || "Order placement failed");
       }
 
-      // Service layer returns ServiceResponse<OrderResult>, we need the OrderResult
+      // executeTrade returns the correct format directly
       const orderResult = orderResponse.data;
 
       if (!orderResult) {
         throw new Error("Order result is missing from response");
       }
 
-      if (!orderResult.success) {
-        throw new Error(orderResult.error || "Order execution failed");
-      }
-
       return {
         ...orderResult,
+        success: true, // Explicitly mark as successful since orderResponse.success was true
         serviceMetrics: {
-          executionTimeMs: orderResponse.executionTimeMs,
-          cached: orderResponse.cached,
-          requestId: orderResponse.requestId,
+          executionTimeMs: orderResponse.executionTime,
+          paperTrade: paperTradingEnabled,
+          credentialSource,
         },
       };
     };

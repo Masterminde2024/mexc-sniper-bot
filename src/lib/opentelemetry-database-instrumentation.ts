@@ -61,7 +61,7 @@ export function instrumentDatabase<T>(dbInstance: T): T {
 export async function instrumentConnectionHealth() {
   // Provide a simple health check implementation without circular dependencies
   console.debug("Database connection health instrumentation enabled");
-  
+
   // Return a promise that resolves to basic health status
   return {
     status: "healthy",
@@ -82,11 +82,11 @@ export async function instrumentDatabaseQuery<T>(
   }
 ): Promise<T> {
   const startTime = Date.now();
-  
+
   try {
     const result = await queryFn();
     const duration = Date.now() - startTime;
-    
+
     if (databaseInstrumentation.isEnabled()) {
       console.debug("DB Query Instrumentation:", {
         queryName,
@@ -96,11 +96,11 @@ export async function instrumentDatabaseQuery<T>(
         timestamp: new Date().toISOString(),
       });
     }
-    
+
     return result;
   } catch (error) {
     const duration = Date.now() - startTime;
-    
+
     if (databaseInstrumentation.isEnabled()) {
       console.error("DB Query Error:", {
         queryName,
@@ -111,7 +111,7 @@ export async function instrumentDatabaseQuery<T>(
         timestamp: new Date().toISOString(),
       });
     }
-    
+
     throw error;
   }
 }
