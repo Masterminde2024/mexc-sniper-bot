@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@/src/lib/supabase-auth-client";
+import { useAuth } from "@/src/components/auth/supabase-auth-provider";
 export interface ApiCredentials {
   id?: number;
   userId: string;

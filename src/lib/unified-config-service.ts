@@ -31,8 +31,8 @@ const DatabaseConfigSchema = z.object({
 
 // Authentication Configuration (Supabase)
 const AuthConfigSchema = z.object({
-  SUPABASE_URL: z.string().url("Invalid Supabase URL"),
-  SUPABASE_ANON_KEY: z.string().min(1, "Supabase Anonymous Key is required"),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url("Invalid Supabase URL"),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1, "Supabase Anonymous Key is required"),
   SUPABASE_SERVICE_ROLE_KEY: z
     .string()
     .min(1, "Supabase Service Role Key is required")

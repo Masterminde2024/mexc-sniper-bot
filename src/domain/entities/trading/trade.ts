@@ -54,13 +54,13 @@ interface TradeProps {
 
 // Validation schema
 const TradePropsSchema = z.object({
-  id: z.string().min(1),
-  userId: z.string().min(1),
-  symbol: z.string().min(1),
+  id: z.string(), // Remove min(1) to allow empty strings
+  userId: z.string(), // Remove min(1) to allow empty strings
+  symbol: z.string(), // Remove min(1) to allow empty strings
   status: z.nativeEnum(TradeStatus),
   strategy: z.string().optional(),
   isAutoSnipe: z.boolean(),
-  confidenceScore: z.number().min(0).max(100).optional(),
+  confidenceScore: z.number().min(0).max(100).optional(), // Add back min/max for schema validation
   paperTrade: z.boolean(),
   orders: z.array(z.any()), // Order validation is handled separately
   entryPrice: z.any().optional(), // Price validation is handled separately
@@ -70,8 +70,8 @@ const TradePropsSchema = z.object({
   totalRevenue: z.any().optional(),
   realizedPnL: z.any().optional(),
   fees: z.any().optional(),
-  stopLossPercent: z.number().positive().max(100).optional(),
-  takeProfitPercent: z.number().positive().optional(),
+  stopLossPercent: z.number().optional(), // Remove positive/max constraints to let business rules handle
+  takeProfitPercent: z.number().optional(), // Remove positive constraint to let business rules handle
   executionStartedAt: z.date().optional(),
   executionCompletedAt: z.date().optional(),
   errorMessage: z.string().optional(),
@@ -83,6 +83,20 @@ const TradePropsSchema = z.object({
 export class Trade extends AggregateRoot<string> {
   private constructor(private props: TradeProps) {
     super(props.id);
+    
+    // Validate props
+    const validationResult = TradePropsSchema.safeParse(props);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.errors[0];
+      throw new DomainValidationError(
+        firstError.path.join("."),
+        "invalid value",
+        firstError.message
+      );
+    }
+
+    // Business rule validations
+    Trade.validateBusinessRules(props);
   }
 
   static create(props: {
@@ -138,26 +152,13 @@ export class Trade extends AggregateRoot<string> {
   }
 
   private static createWithValidation(props: TradeProps): Trade {
-    // Validate props
-    const validationResult = TradePropsSchema.safeParse(props);
-    if (!validationResult.success) {
-      const firstError = validationResult.error.errors[0];
-      throw new DomainValidationError(
-        firstError.path.join("."),
-        "invalid value",
-        firstError.message
-      );
-    }
-
-    // Business rule validations
-    Trade.validateBusinessRules(props);
-
+    // Validation is now handled in constructor
     return new Trade(props);
   }
 
   private static validateBusinessRules(props: TradeProps): void {
     // Auto-snipe confidence validation
-    if (props.isAutoSnipe && !props.confidenceScore) {
+    if (props.isAutoSnipe && (props.confidenceScore === undefined || props.confidenceScore === null)) {
       throw new BusinessRuleViolationError(
         "Auto-snipe trades must have a confidence score",
         `Trade: ${props.id}`
@@ -165,22 +166,23 @@ export class Trade extends AggregateRoot<string> {
     }
 
     // Stop loss validation
-    if (
-      props.stopLossPercent &&
-      (props.stopLossPercent <= 0 || props.stopLossPercent >= 100)
-    ) {
-      throw new BusinessRuleViolationError(
-        "Stop loss percentage must be between 0 and 100",
-        `Trade: ${props.id}`
-      );
+    if (props.stopLossPercent !== undefined && props.stopLossPercent !== null) {
+      if (props.stopLossPercent <= 0 || props.stopLossPercent > 100) {
+        throw new BusinessRuleViolationError(
+          "Stop loss percentage must be between 0 and 100",
+          `Trade: ${props.id}`
+        );
+      }
     }
 
     // Take profit validation
-    if (props.takeProfitPercent && props.takeProfitPercent <= 0) {
-      throw new BusinessRuleViolationError(
-        "Take profit percentage must be positive",
-        `Trade: ${props.id}`
-      );
+    if (props.takeProfitPercent !== undefined && props.takeProfitPercent !== null) {
+      if (props.takeProfitPercent <= 0) {
+        throw new BusinessRuleViolationError(
+          "Take profit percentage must be positive",
+          `Trade: ${props.id}`
+        );
+      }
     }
 
     // Status consistency checks
@@ -521,6 +523,11 @@ export class Trade extends AggregateRoot<string> {
 
   cancel(reason?: string): Trade {
     if (this.isFinalized()) {
+      throw new InvalidOrderStateError(this.props.status, "cancel");
+    }
+
+    // Cannot cancel executing trades
+    if (this.isExecuting()) {
       throw new InvalidOrderStateError(this.props.status, "cancel");
     }
 

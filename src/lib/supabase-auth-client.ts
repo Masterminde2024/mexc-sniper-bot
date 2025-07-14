@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getSupabaseBrowserClient } from "./supabase-browser-client";
+import { getSupabaseBrowserClient, isSupabaseAvailable } from "./supabase-browser-client";
 import {
   bypassRateLimitInDev,
   type RateLimitInfo,
@@ -26,7 +26,6 @@ interface AuthSession {
 }
 
 interface AuthError extends Error {
-  message: string;
   rateLimitInfo?: RateLimitInfo;
 }
 
@@ -51,17 +50,36 @@ export const useAuth = () => {
       setIsPending(true);
       setError(null);
 
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) {
-        throw new Error("Supabase client not available (SSR environment)");
+      // Check if Supabase is available
+      if (!isSupabaseAvailable()) {
+        console.info("[Auth] Supabase not configured, using anonymous session");
+        setSession({ isAuthenticated: false });
+        return;
       }
 
-      const {
-        data: { session: supabaseSession },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        setSession({ isAuthenticated: false });
+        return;
+      }
+
+      // Add timeout to prevent hanging
+      const sessionPromise = supabase.auth.getSession();
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Session fetch timeout")), 5000)
+      );
+
+      const { data: { session: supabaseSession }, error: sessionError } = 
+        await Promise.race([sessionPromise, timeoutPromise]) as any;
 
       if (sessionError) {
+        // Log network errors but don't treat them as fatal
+        if (sessionError.message.includes('fetch failed') || 
+            sessionError.message.includes('timeout')) {
+          console.info("[Auth] Network error during session fetch, using anonymous session");
+          setSession({ isAuthenticated: false });
+          return;
+        }
         throw new Error(sessionError.message);
       }
 
@@ -93,10 +111,19 @@ export const useAuth = () => {
       }
     } catch (err) {
       const error = err as AuthError;
-      setError(error);
-      setSession({
-        isAuthenticated: false,
-      });
+      
+      // Network errors shouldn't be treated as auth errors
+      if (error.message.includes('timeout') || 
+          error.message.includes('fetch failed') ||
+          error.message.includes('network')) {
+        console.info("[Auth] Network error, falling back to anonymous session");
+        setSession({ isAuthenticated: false });
+        setError(null); // Clear the error since this is expected
+      } else {
+        console.warn("[Auth] Authentication error:", error.message);
+        setError(error);
+        setSession({ isAuthenticated: false });
+      }
     } finally {
       setIsPending(false);
     }
@@ -104,6 +131,11 @@ export const useAuth = () => {
 
   useEffect(() => {
     fetchSession();
+
+    // Only set up auth listener if Supabase is available
+    if (!isSupabaseAvailable()) {
+      return () => {};
+    }
 
     // Listen for auth changes
     const supabase = getSupabaseBrowserClient();
@@ -116,13 +148,24 @@ export const useAuth = () => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, _session) => {
-      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        await fetchSession();
-      } else if (event === "SIGNED_OUT") {
-        setSession({
-          isAuthenticated: false,
-        });
-        setIsPending(false);
+      try {
+        if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+          await fetchSession();
+        } else if (event === "SIGNED_OUT") {
+          setSession({
+            isAuthenticated: false,
+          });
+          setIsPending(false);
+        }
+      } catch (error) {
+        // Suppress token refresh errors - they're expected when offline/unconfigured
+        if (error instanceof Error && 
+            (error.message.includes('refresh') || 
+             error.message.includes('fetch failed'))) {
+          console.debug("[Auth] Token refresh failed (expected if offline)");
+        } else {
+          console.warn("[Auth] Auth state change error:", error);
+        }
       }
     });
 
@@ -130,14 +173,22 @@ export const useAuth = () => {
   }, [fetchSession]);
 
   const getToken = useCallback(async () => {
+    if (!isSupabaseAvailable()) {
+      return null;
+    }
+
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
       return null;
     }
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    return session?.access_token || null;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.access_token || null;
+    } catch (error) {
+      console.debug("[Auth] Error getting token:", error);
+      return null;
+    }
   }, []);
 
   return {
@@ -149,20 +200,7 @@ export const useAuth = () => {
     error,
     refetch: fetchSession,
     getToken,
-  };
-};
-
-/**
- * Hook for session data compatible with existing interface
- */
-export const useSession = () => {
-  const auth = useAuth();
-
-  return {
-    data: auth.session,
-    isPending: auth.isLoading,
-    error: auth.error,
-    refetch: auth.refetch,
+    isSupabaseConfigured: isSupabaseAvailable(),
   };
 };
 
@@ -174,9 +212,13 @@ export const signInWithEmail = async (
   password: string,
   options: AuthOptions = {}
 ) => {
+  if (!isSupabaseAvailable()) {
+    throw new Error("Authentication not available - Supabase not configured");
+  }
+
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
-    throw new Error("Supabase client not available (SSR environment)");
+    throw new Error("Supabase client not available");
   }
 
   const enableRateLimitHandling = options.enableRateLimitHandling !== false;
@@ -236,9 +278,13 @@ export const signUpWithEmail = async (
   },
   authOptions: AuthOptions = {}
 ) => {
+  if (!isSupabaseAvailable()) {
+    throw new Error("Authentication not available - Supabase not configured");
+  }
+
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
-    throw new Error("Supabase client not available (SSR environment)");
+    throw new Error("Supabase client not available");
   }
 
   const enableRateLimitHandling = authOptions.enableRateLimitHandling !== false;
@@ -293,15 +339,41 @@ export const signUpWithEmail = async (
 };
 
 /**
+ * Sign out current user
+ */
+export const signOut = async () => {
+  if (!isSupabaseAvailable()) {
+    console.info("[Auth] Supabase not configured, skipping sign out");
+    return { error: null };
+  }
+
+  const supabase = getSupabaseBrowserClient();
+  if (!supabase) {
+    return { error: null };
+  }
+
+  try {
+    return await supabase.auth.signOut();
+  } catch (error) {
+    console.warn("[Auth] Error during sign out:", error);
+    return { error };
+  }
+};
+
+/**
  * Enhanced sign in with OAuth providers with rate limit handling
  */
 export const signInWithOAuth = async (
   provider: "google" | "github" | "discord",
   authOptions: AuthOptions = {}
 ) => {
+  if (!isSupabaseAvailable()) {
+    throw new Error("Authentication not available - Supabase not configured");
+  }
+
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
-    throw new Error("Supabase client not available (SSR environment)");
+    throw new Error("Supabase client not available");
   }
 
   const enableRateLimitHandling = authOptions.enableRateLimitHandling !== false;
@@ -342,31 +414,19 @@ export const signInWithOAuth = async (
 };
 
 /**
- * Sign out
- */
-export const signOut = async () => {
-  const supabase = getSupabaseBrowserClient();
-  if (!supabase) {
-    throw new Error("Supabase client not available (SSR environment)");
-  }
-
-  const { error } = await supabase.auth.signOut();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-};
-
-/**
  * Enhanced reset password with rate limit handling
  */
 export const resetPassword = async (
   email: string,
   authOptions: AuthOptions = {}
 ) => {
+  if (!isSupabaseAvailable()) {
+    throw new Error("Authentication not available - Supabase not configured");
+  }
+
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
-    throw new Error("Supabase client not available (SSR environment)");
+    throw new Error("Supabase client not available");
   }
 
   const enableRateLimitHandling = authOptions.enableRateLimitHandling !== false;
@@ -420,9 +480,13 @@ export const updatePassword = async (
   newPassword: string,
   authOptions: AuthOptions = {}
 ) => {
+  if (!isSupabaseAvailable()) {
+    throw new Error("Authentication not available - Supabase not configured");
+  }
+
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
-    throw new Error("Supabase client not available (SSR environment)");
+    throw new Error("Supabase client not available");
   }
 
   const enableRateLimitHandling = authOptions.enableRateLimitHandling !== false;
@@ -470,9 +534,13 @@ export const updateProfile = async (
   },
   authOptions: AuthOptions = {}
 ) => {
+  if (!isSupabaseAvailable()) {
+    throw new Error("Authentication not available - Supabase not configured");
+  }
+
   const supabase = getSupabaseBrowserClient();
   if (!supabase) {
-    throw new Error("Supabase client not available (SSR environment)");
+    throw new Error("Supabase client not available");
   }
 
   const enableRateLimitHandling = authOptions.enableRateLimitHandling !== false;
@@ -512,9 +580,6 @@ export const updateProfile = async (
 
   return operation();
 };
-
-// Export supabase client for direct access if needed
-export const supabase = getSupabaseBrowserClient();
 
 /**
  * Enhanced auth hook with rate limit monitoring

@@ -605,9 +605,9 @@ async function checkDatabaseHealth(): Promise<any> {
 async function checkAuthHealth(): Promise<any> {
   try {
     // Basic auth health check for Supabase
-    const isConfigured = !!(
-      process.env.SUPABASE_URL &&
-      process.env.SUPABASE_ANON_KEY &&
+          const isConfigured = !!(
+        process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 

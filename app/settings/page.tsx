@@ -142,6 +142,16 @@ export default function SettingsPage() {
   const _handleSaveMultiLevelTakeProfit = async (levels: any[]) => {
     console.info("Saving multi-level take-profit levels:", levels);
 
+    // Check authentication before saving
+    if (!user || !userId) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to save your take-profit settings.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Update the multi-level configuration
     const updatedConfig = {
       ...multiLevelConfig,
@@ -154,7 +164,7 @@ export default function SettingsPage() {
 
     try {
       await updateMultiLevelTakeProfit.mutateAsync({
-        userId: userId || "",
+        userId: userId, // Remove the empty string fallback
         config: updatedConfig,
       });
 
@@ -186,10 +196,20 @@ export default function SettingsPage() {
 
   // Save all settings
   const handleSave = useCallback(async () => {
+    // Check authentication before saving
+    if (!user || !userId) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to save your settings.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      // Save preferences
+      // Save preferences with validated userId
       await updatePreferencesMutation.mutateAsync({
-        userId: userId || "",
+        userId: userId, // Remove the empty string fallback
         // Enhanced take profit strategy
         takeProfitStrategy: takeProfitStrategy,
         takeProfitLevelsConfig: JSON.stringify(customTakeProfitStrategy),
@@ -225,6 +245,7 @@ export default function SettingsPage() {
     updatePreferencesMutation.mutateAsync,
     toast,
     userId,
+    user, // Add user to dependencies
   ]);
 
   // Sync settings to execution system

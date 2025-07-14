@@ -35,8 +35,8 @@ export async function GET() {
     // Required environment variables for Supabase Auth
     const requiredEnvs = [
       "DATABASE_URL",
-      "SUPABASE_URL",
-      "SUPABASE_ANON_KEY",
+      "NEXT_PUBLIC_SUPABASE_URL",
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
       "SUPABASE_SERVICE_ROLE_KEY",
     ];
 
@@ -85,15 +85,15 @@ export async function GET() {
 
     // Validate configuration values with proper URL validation
     const configValidation = {
-      supabase_url_format: validateUrlFormat(process.env.SUPABASE_URL, [
+      supabase_url_format: validateUrlFormat(process.env.NEXT_PUBLIC_SUPABASE_URL, [
         "https",
       ]),
       database_url_format: validateUrlFormat(process.env.DATABASE_URL, [
         "postgresql",
       ]),
-      anon_key_format: Boolean(
-        process.env.SUPABASE_ANON_KEY &&
-          process.env.SUPABASE_ANON_KEY.length > 0
+            anon_key_format: Boolean(
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.length > 0
       ),
       service_role_key_format: Boolean(
         process.env.SUPABASE_SERVICE_ROLE_KEY &&
@@ -120,9 +120,9 @@ export async function GET() {
 
     // Additional deployment environment info
     let supabaseDomain = null;
-    if (process.env.SUPABASE_URL) {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
       try {
-        supabaseDomain = new URL(process.env.SUPABASE_URL).hostname;
+        supabaseDomain = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname;
       } catch {
         supabaseDomain = "invalid-url";
       }

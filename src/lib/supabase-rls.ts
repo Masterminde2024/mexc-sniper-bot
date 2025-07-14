@@ -174,8 +174,8 @@ export async function testRLSPolicies(userId: string): Promise<{
   try {
     // Create a client with the user's authentication
     const userClient = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_ANON_KEY!,
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         auth: {
           autoRefreshToken: false,

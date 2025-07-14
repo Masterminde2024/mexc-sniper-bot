@@ -14,7 +14,7 @@ interface BaseSafetyEvent extends DomainEvent {
 
 // Emergency Stop Events
 export interface EmergencyStopCreated extends BaseSafetyEvent {
-  readonly type: "emergency_stop.created";
+  readonly type: "EmergencyStopCreated";
   readonly data: {
     emergencyStopId: string;
     userId: string;
@@ -38,7 +38,7 @@ export interface EmergencyStopCreated extends BaseSafetyEvent {
 }
 
 export interface EmergencyStopTriggered extends BaseSafetyEvent {
-  readonly type: "emergency_stop.triggered";
+  readonly type: "EmergencyStopTriggered";
   readonly data: {
     emergencyStopId: string;
     userId: string;
@@ -56,7 +56,7 @@ export interface EmergencyStopTriggered extends BaseSafetyEvent {
 }
 
 export interface EmergencyStopCompleted extends BaseSafetyEvent {
-  readonly type: "emergency_stop.completed";
+  readonly type: "EmergencyStopCompleted";
   readonly data: {
     emergencyStopId: string;
     userId: string;
@@ -81,7 +81,7 @@ export interface EmergencyStopCompleted extends BaseSafetyEvent {
 }
 
 export interface EmergencyStopFailed extends BaseSafetyEvent {
-  readonly type: "emergency_stop.failed";
+  readonly type: "EmergencyStopFailed";
   readonly data: {
     emergencyStopId: string;
     userId: string;
@@ -98,13 +98,14 @@ export interface EmergencyStopFailed extends BaseSafetyEvent {
       actionType: string;
       success: boolean;
       duration: number;
+      error?: string;
     }>;
   };
 }
 
 // Risk Profile Events
 export interface RiskProfileCreated extends BaseSafetyEvent {
-  readonly type: "risk_profile.created";
+  readonly type: "RiskProfileCreated";
   readonly data: {
     riskProfileId: string;
     userId: string;
@@ -132,7 +133,7 @@ export interface RiskProfileCreated extends BaseSafetyEvent {
 }
 
 export interface RiskProfileUpdated extends BaseSafetyEvent {
-  readonly type: "risk_profile.updated";
+  readonly type: "RiskProfileUpdated";
   readonly data: {
     riskProfileId: string;
     userId: string;
@@ -146,7 +147,7 @@ export interface RiskProfileUpdated extends BaseSafetyEvent {
 }
 
 export interface RiskThresholdViolated extends BaseSafetyEvent {
-  readonly type: "risk_threshold.violated";
+  readonly type: "RiskThresholdViolated";
   readonly data: {
     riskProfileId: string;
     userId: string;
@@ -176,7 +177,7 @@ export interface RiskThresholdViolated extends BaseSafetyEvent {
 
 // Safety Alert Events
 export interface SafetyAlertCreated extends BaseSafetyEvent {
-  readonly type: "safety_alert.created";
+  readonly type: "SafetyAlertCreated";
   readonly data: {
     alertId: string;
     userId: string;
@@ -198,7 +199,7 @@ export interface SafetyAlertCreated extends BaseSafetyEvent {
 }
 
 export interface SafetyAlertResolved extends BaseSafetyEvent {
-  readonly type: "safety_alert.resolved";
+  readonly type: "SafetyAlertResolved";
   readonly data: {
     alertId: string;
     userId: string;
@@ -232,12 +233,11 @@ export class SafetyEventFactory {
     data: EmergencyStopCreated["data"]
   ): EmergencyStopCreated {
     return {
-      type: "emergency_stop.created",
+      type: "EmergencyStopCreated",
       aggregateId: emergencyStopId,
       userId,
-      payload: data,
-      occurredAt: new Date(),
-      eventId: `emergency-stop-created-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      eventId: crypto.randomUUID(),
+      timestamp: new Date(),
       data,
     };
   }
@@ -248,12 +248,11 @@ export class SafetyEventFactory {
     data: EmergencyStopTriggered["data"]
   ): EmergencyStopTriggered {
     return {
-      type: "emergency_stop.triggered",
+      type: "EmergencyStopTriggered",
       aggregateId: emergencyStopId,
       userId,
-      payload: data,
-      occurredAt: new Date(),
-      eventId: `emergency-stop-triggered-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      eventId: crypto.randomUUID(),
+      timestamp: new Date(),
       data,
     };
   }
@@ -264,12 +263,11 @@ export class SafetyEventFactory {
     data: EmergencyStopCompleted["data"]
   ): EmergencyStopCompleted {
     return {
-      type: "emergency_stop.completed",
+      type: "EmergencyStopCompleted",
       aggregateId: emergencyStopId,
       userId,
-      payload: data,
-      occurredAt: new Date(),
-      eventId: `emergency-stop-completed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      eventId: crypto.randomUUID(),
+      timestamp: new Date(),
       data,
     };
   }
@@ -280,12 +278,11 @@ export class SafetyEventFactory {
     data: EmergencyStopFailed["data"]
   ): EmergencyStopFailed {
     return {
-      type: "emergency_stop.failed",
+      type: "EmergencyStopFailed",
       aggregateId: emergencyStopId,
       userId,
-      payload: data,
-      occurredAt: new Date(),
-      eventId: `emergency-stop-failed-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      eventId: crypto.randomUUID(),
+      timestamp: new Date(),
       data,
     };
   }
@@ -296,12 +293,11 @@ export class SafetyEventFactory {
     data: RiskProfileCreated["data"]
   ): RiskProfileCreated {
     return {
-      type: "risk_profile.created",
+      type: "RiskProfileCreated",
       aggregateId: riskProfileId,
       userId,
-      payload: data,
-      occurredAt: new Date(),
-      eventId: `risk-profile-created-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      eventId: crypto.randomUUID(),
+      timestamp: new Date(),
       data,
     };
   }
@@ -312,12 +308,11 @@ export class SafetyEventFactory {
     data: RiskProfileUpdated["data"]
   ): RiskProfileUpdated {
     return {
-      type: "risk_profile.updated",
+      type: "RiskProfileUpdated",
       aggregateId: riskProfileId,
       userId,
-      payload: data,
-      occurredAt: new Date(),
-      eventId: `risk-profile-updated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      eventId: crypto.randomUUID(),
+      timestamp: new Date(),
       data,
     };
   }
@@ -328,12 +323,11 @@ export class SafetyEventFactory {
     data: RiskThresholdViolated["data"]
   ): RiskThresholdViolated {
     return {
-      type: "risk_threshold.violated",
+      type: "RiskThresholdViolated",
       aggregateId: riskProfileId,
       userId,
-      payload: data,
-      occurredAt: new Date(),
-      eventId: `risk-threshold-violated-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      eventId: crypto.randomUUID(),
+      timestamp: new Date(),
       data,
     };
   }
@@ -344,12 +338,11 @@ export class SafetyEventFactory {
     data: SafetyAlertCreated["data"]
   ): SafetyAlertCreated {
     return {
-      type: "safety_alert.created",
+      type: "SafetyAlertCreated",
       aggregateId: alertId,
       userId,
-      payload: data,
-      occurredAt: new Date(),
-      eventId: `safety-alert-created-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      eventId: crypto.randomUUID(),
+      timestamp: new Date(),
       data,
     };
   }
@@ -360,12 +353,11 @@ export class SafetyEventFactory {
     data: SafetyAlertResolved["data"]
   ): SafetyAlertResolved {
     return {
-      type: "safety_alert.resolved",
+      type: "SafetyAlertResolved",
       aggregateId: alertId,
       userId,
-      payload: data,
-      occurredAt: new Date(),
-      eventId: `safety-alert-resolved-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      eventId: crypto.randomUUID(),
+      timestamp: new Date(),
       data,
     };
   }

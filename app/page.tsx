@@ -26,10 +26,11 @@ import {
   CardHeader,
   CardTitle,
 } from "../src/components/ui/card";
-import { useAuth } from "../src/lib/supabase-auth-client";
+import { useAuth } from "../src/components/auth/supabase-auth-provider";
 
 function AuthenticatedRedirect() {
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { user, isLoading } = useAuth();
+  const isAuthenticated = !!user;
   const router = useRouter();
   const isClient = useIsClient();
 
@@ -55,7 +56,8 @@ function LoadingState() {
 }
 
 function HomePage() {
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { user, isLoading } = useAuth();
+  const isAuthenticated = !!user;
   const isClient = useIsClient();
 
   // Show loading state while checking authentication or hydrating
