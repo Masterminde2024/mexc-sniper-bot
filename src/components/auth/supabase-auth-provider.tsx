@@ -15,6 +15,8 @@ type SupabaseAuthContextType = {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
+  isAuthenticated: boolean;
+  getToken: () => Promise<string | null>;
   signOut: () => Promise<AuthError | null>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
@@ -32,13 +34,13 @@ interface SupabaseAuthProviderProps {
 }
 
 export function SupabaseAuthProvider({ children }: SupabaseAuthProviderProps) {
-  // Detect test environment
+  // Detect test environment (exclude localhost development)
   const isTestEnvironment =
     typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" ||
-      process.env.NODE_ENV === "test" ||
+    (process.env.NODE_ENV === "test" ||
       process.env.PLAYWRIGHT_TEST === "true" ||
-      window.navigator.userAgent?.includes("Playwright"));
+      window.navigator.userAgent?.includes("Playwright") ||
+      process.env.FORCE_TEST_MODE === "true");
 
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -233,10 +235,32 @@ export function SupabaseAuthProvider({ children }: SupabaseAuthProviderProps) {
     return { error };
   };
 
+  const getToken = async (): Promise<string | null> => {
+    // Mock implementation in test environment
+    if (isTestEnvironment) {
+      return "mock-access-token";
+    }
+
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      return null;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      return session?.access_token || null;
+    } catch (error) {
+      console.debug("[Auth] Error getting token:", error);
+      return null;
+    }
+  };
+
   const value = {
     user,
     session,
     isLoading,
+    isAuthenticated: !!user,
+    getToken,
     signOut,
     signIn,
     signUp,

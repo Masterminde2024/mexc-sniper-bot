@@ -367,7 +367,7 @@ describe('RiskProfile Domain Entity', () => {
       const assessment = riskProfileWithLowThreshold.evaluateThresholds(marketDataForRisk);
 
       expect(assessment.violations).toContain('drawdown_threshold');
-      expect(assessment.riskLevel).toBe('medium');
+      expect(assessment.riskLevel).toBe('high'); // 3 violations = high risk level
       expect(assessment.overallRisk).toBeGreaterThan(0);
     });
 

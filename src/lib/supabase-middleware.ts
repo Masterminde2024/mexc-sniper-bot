@@ -21,8 +21,8 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Check if Supabase is configured
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.warn(
@@ -74,14 +74,34 @@ export async function updateSession(request: NextRequest) {
       },
     });
 
-    // Refresh session if needed
-    await supabase.auth.getUser();
-
-    // Check if user is authenticated
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser();
+    // Check if user is authenticated (this call handles session refresh internally)
+    let user = null;
+    let authError = null;
+    
+    try {
+      const {
+        data: { user: userData },
+        error: getUserError,
+      } = await supabase.auth.getUser();
+      
+      user = userData;
+      authError = getUserError;
+    } catch (sessionError) {
+      // Session refresh failures are expected when there's no valid session
+      // Don't log these as errors since they're part of normal flow
+      if (sessionError instanceof Error && 
+          (sessionError.message.includes('fetch failed') || 
+           sessionError.message.includes('refresh'))) {
+        // This is expected behavior - no valid session to refresh
+        user = null;
+        authError = null;
+      } else {
+        // Unexpected error - log it
+        console.warn("Unexpected auth error:", sessionError);
+        user = null;
+        authError = sessionError;
+      }
+    }
 
     // Protected routes that require authentication
     const protectedPaths = [
@@ -101,21 +121,27 @@ export async function updateSession(request: NextRequest) {
     );
 
     // If user is not authenticated and trying to access protected route
-    if (isProtectedPath && (!user || error)) {
+    if (isProtectedPath && (!user || authError)) {
       const redirectUrl = new URL("/auth", request.url);
       redirectUrl.searchParams.set("redirect_to", request.nextUrl.pathname);
       return NextResponse.redirect(redirectUrl);
     }
 
     // If user is authenticated and trying to access auth pages
-    if (isAuthPath && user && !error) {
+    if (isAuthPath && user && !authError) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
     return response;
   } catch (error) {
-    console.error("Supabase middleware error:", error);
-    // If anything fails, just continue with the request
+    // Only log unexpected errors, not auth-related failures
+    if (error instanceof Error && 
+        !error.message.includes('fetch failed') && 
+        !error.message.includes('refresh') &&
+        !error.message.includes('Unable to connect')) {
+      console.error("Supabase middleware error:", error);
+    }
+    // If anything fails, just continue with the request (fail-safe behavior)
     return response;
   }
 }

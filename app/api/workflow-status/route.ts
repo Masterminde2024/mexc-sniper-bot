@@ -24,59 +24,58 @@ interface WorkflowDefinition {
 
 const WORKFLOW_DEFINITIONS: WorkflowDefinition[] = [
   {
-    id: "poll-mexc-calendar",
-    name: "MEXC Calendar Polling",
+    id: "mexc-pattern-analysis",
+    name: "MEXC Pattern Analysis",
     type: "event",
     status: "running",
+    trigger: "mexc/api.pattern.detection",
     lastRun: new Date(Date.now() - 300000).toISOString(),
-    executionCount: 24,
-    successCount: 23,
-    errorCount: 1,
-    avgDuration: 1500,
-    description:
-      "Monitors MEXC calendar for new token listings and trading opportunities",
-    trigger: "mexc.calendar.updated",
-  },
-  {
-    id: "watch-mexc-symbol",
-    name: "Symbol Monitoring",
-    type: "event",
-    status: "running",
-    lastRun: new Date(Date.now() - 120000).toISOString(),
-    executionCount: 156,
-    successCount: 154,
+    executionCount: 45,
+    successCount: 43,
     errorCount: 2,
-    avgDuration: 800,
-    description:
-      "Monitors specific symbols for trading signals and pattern detection",
-    trigger: "mexc.symbol.ready",
+    avgDuration: 2400,
+    description: "Analyzes market patterns for trading opportunities",
   },
   {
-    id: "analyze-mexc-patterns",
-    name: "Pattern Analysis",
-    type: "event",
-    status: "running",
-    lastRun: new Date(Date.now() - 180000).toISOString(),
-    executionCount: 89,
-    successCount: 87,
-    errorCount: 2,
-    avgDuration: 2100,
-    description: "Analyzes market patterns and generates trading signals",
-    trigger: "pattern.detected",
-  },
-  {
-    id: "create-mexc-trading-strategy",
-    name: "Strategy Creation",
+    id: "auto-sniping-execution",
+    name: "Auto Sniping Execution",
     type: "event",
     status: "stopped",
-    lastRun: new Date(Date.now() - 600000).toISOString(),
+    trigger: "snipe/target.ready",
+    lastRun: new Date(Date.now() - 900000).toISOString(),
     executionCount: 12,
-    successCount: 11,
-    errorCount: 1,
-    avgDuration: 3200,
-    description:
-      "Creates and validates trading strategies based on market analysis",
-    trigger: "strategy.create",
+    successCount: 10,
+    errorCount: 2,
+    avgDuration: 800,
+    description: "Executes snipe orders for ready targets",
+  },
+  {
+    id: "market-data-collection",
+    name: "Market Data Collection",
+    type: "scheduled",
+    status: "running",
+    schedule: "*/30 * * * * *",
+    nextRun: new Date(Date.now() + 30000).toISOString(),
+    lastRun: new Date(Date.now() - 15000).toISOString(),
+    executionCount: 2880,
+    successCount: 2875,
+    errorCount: 5,
+    avgDuration: 450,
+    description: "Collects and processes real-time market data",
+  },
+  {
+    id: "calendar-sync",
+    name: "Calendar Data Sync",
+    type: "scheduled",
+    status: "running",
+    schedule: "0 */5 * * * *",
+    nextRun: new Date(Date.now() + 120000).toISOString(),
+    lastRun: new Date(Date.now() - 180000).toISOString(),
+    executionCount: 576,
+    successCount: 570,
+    errorCount: 6,
+    avgDuration: 1800,
+    description: "Syncs MEXC calendar data for new token listings",
   },
   {
     id: "scheduled-calendar-monitoring",
@@ -201,70 +200,127 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { action, workflowId } = body;
-
-    if (workflowId && action) {
-      const workflow = WORKFLOW_DEFINITIONS.find((w) => w.id === workflowId);
-      if (!workflow) {
+    // Parse request body with better error handling
+    let body: any;
+    try {
+      const text = await request.text();
+      if (!text.trim()) {
         return NextResponse.json(
           {
             success: false,
-            error: "Workflow not found",
+            error: "Empty request body - workflow status updates require JSON data",
+            example: {
+              workflowId: "mexc-pattern-analysis",
+              action: "start" // or "stop", "restart"
+            },
             timestamp: new Date().toISOString(),
           },
-          { status: 404 }
+          { status: 400 }
         );
       }
-
-      // Update workflow status
-      switch (action) {
-        case "start":
-          workflow.status = "running";
-          break;
-        case "stop":
-          workflow.status = "stopped";
-          break;
-        case "restart":
-          workflow.status = "running";
-          workflow.lastRun = new Date().toISOString();
-          break;
-        default:
-          return NextResponse.json(
-            {
-              success: false,
-              error: "Invalid action for workflow",
-              timestamp: new Date().toISOString(),
-            },
-            { status: 400 }
-          );
-      }
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          workflowId,
-          newStatus: workflow.status,
-          message: `Workflow ${workflowId} ${action} successfully`,
+      body = JSON.parse(text);
+    } catch (parseError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Invalid JSON in request body",
+          details: parseError instanceof Error ? parseError.message : "Unknown error",
+          timestamp: new Date().toISOString(),
         },
-        timestamp: new Date().toISOString(),
-      });
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Invalid request - specify workflowId and action",
-        timestamp: new Date().toISOString(),
+    const { action, workflowId } = body;
+
+    // Validate required parameters
+    if (!workflowId || !action) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Missing required parameters",
+          required: {
+            workflowId: "string (workflow identifier)",
+            action: "string (start|stop|restart)"
+          },
+          received: {
+            workflowId: workflowId || "missing",
+            action: action || "missing"
+          },
+          availableWorkflows: WORKFLOW_DEFINITIONS.map(w => w.id),
+          timestamp: new Date().toISOString(),
+        },
+        { status: 400 }
+      );
+    }
+
+    // Find workflow
+    const workflow = WORKFLOW_DEFINITIONS.find((w) => w.id === workflowId);
+    if (!workflow) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Workflow not found",
+          workflowId,
+          availableWorkflows: WORKFLOW_DEFINITIONS.map(w => w.id),
+          timestamp: new Date().toISOString(),
+        },
+        { status: 404 }
+      );
+    }
+
+    // Update workflow status
+    switch (action) {
+      case "start":
+        workflow.status = "running";
+        break;
+      case "stop":
+        workflow.status = "stopped";
+        break;
+      case "restart":
+        workflow.status = "running";
+        workflow.lastRun = new Date().toISOString();
+        break;
+      default:
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Invalid action for workflow",
+            action,
+            validActions: ["start", "stop", "restart"],
+            timestamp: new Date().toISOString(),
+          },
+          { status: 400 }
+        );
+    }
+
+    console.log(`[WorkflowStatus] ${action} action performed on workflow: ${workflowId}`);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        workflowId,
+        action,
+        newStatus: workflow.status,
+        message: `Workflow ${workflowId} ${action} successfully`,
+        workflow: {
+          id: workflow.id,
+          name: workflow.name,
+          status: workflow.status,
+          lastRun: workflow.lastRun,
+          nextRun: workflow.nextRun,
+        }
       },
-      { status: 400 }
-    );
+      timestamp: new Date().toISOString(),
+    });
+
   } catch (error) {
     console.error("Failed to update workflow status:", { error: error });
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to update workflow status",
+        error: "Failed to update workflow status", 
+        details: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
       },
       { status: 500 }

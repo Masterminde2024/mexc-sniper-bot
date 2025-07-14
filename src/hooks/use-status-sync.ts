@@ -9,7 +9,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { useAuth } from "@/src/lib/supabase-auth-client";
+import { useAuth } from "@/src/components/auth/supabase-auth-provider";
 
 // ============================================================================
 // Types & Interfaces

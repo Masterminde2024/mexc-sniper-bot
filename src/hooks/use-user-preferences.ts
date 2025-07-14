@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApiResponse } from "@/src/lib/api-response";
 import { queryKeys } from "@/src/lib/query-client";
-import { useAuth } from "@/src/lib/supabase-auth-client";
+import { useAuth } from "@/src/components/auth/supabase-auth-provider";
 import type { ExitStrategy } from "../types/exit-strategies";
 
 export interface TakeProfitLevels {
@@ -76,7 +76,10 @@ export function useUserPreferences(userId?: string) {
 
       try {
         const response = await fetch(
-          `/api/user-preferences?userId=${encodeURIComponent(userId)}`
+          `/api/user-preferences?userId=${encodeURIComponent(userId)}`,
+          {
+            credentials: "include", // Include authentication cookies
+          }
         );
 
         if (!response.ok) {
@@ -123,12 +126,26 @@ export function useUpdateUserPreferences() {
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: "include", // Include authentication cookies
           body: JSON.stringify(data),
         });
 
         if (!response.ok) {
+          // Try to get more detailed error info from response body
+          let errorDetails = response.statusText;
+          try {
+            const errorResponse = await response.json();
+            if (errorResponse.error) {
+              errorDetails = errorResponse.error;
+            } else if (errorResponse.message) {
+              errorDetails = errorResponse.message;
+            }
+          } catch {
+            // Fallback to status text if response isn't JSON
+          }
+          
           throw new Error(
-            `Failed to update user preferences: ${response.statusText}`
+            `Failed to update user preferences: ${errorDetails} (Status: ${response.status})`
           );
         }
 

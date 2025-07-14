@@ -20,6 +20,25 @@ export interface AgentCacheStats {
   totalMisses: number;
 }
 
+// Interface for the enhanced agent response (compatible with common-interfaces)
+export interface EnhancedAgentResponse {
+  success: boolean;
+  data: any;
+  content: string;
+  timestamp: number;
+  processingTime: number;
+  confidence: number;
+  reasoning: string;
+  metadata: Record<string, any>;
+}
+
+// Interface for set options
+export interface SetAgentResponseOptions {
+  ttl?: number;
+  priority?: "low" | "medium" | "high";
+  dependencies?: string[];
+}
+
 class EnhancedAgentCache {
   private cache: Map<string, AgentCacheEntry> = new Map();
   private stats = {
@@ -68,6 +87,75 @@ class EnhancedAgentCache {
     this.stats.hits++;
 
     return entry.data;
+  }
+
+  /**
+   * Get agent response with enhanced compatibility for BaseAgent
+   */
+  async getAgentResponse(
+    agentName: string,
+    input: string,
+    context?: Record<string, any>
+  ): Promise<EnhancedAgentResponse | null> {
+    const cacheKey = this.generateAgentCacheKey(agentName, input, context);
+    const cached = this.get(cacheKey);
+    
+    if (cached) {
+      return cached as EnhancedAgentResponse;
+    }
+    
+    return null;
+  }
+
+  /**
+   * Set agent response with enhanced compatibility for BaseAgent
+   */
+  async setAgentResponse(
+    agentName: string,
+    input: string,
+    response: EnhancedAgentResponse,
+    context?: Record<string, any>,
+    options?: SetAgentResponseOptions
+  ): Promise<void> {
+    const cacheKey = this.generateAgentCacheKey(agentName, input, context);
+    const ttl = options?.ttl || this.defaultTtl;
+    
+    this.set(cacheKey, response, agentName, ttl);
+  }
+
+  /**
+   * Track cache miss for statistics
+   */
+  async trackCacheMiss(agentName: string): Promise<void> {
+    // This is called when there's a cache miss
+    // The actual miss tracking is already handled in the get() method
+    // This method exists for API compatibility
+    console.debug(`[EnhancedAgentCache] Cache miss tracked for agent: ${agentName}`);
+  }
+
+  /**
+   * Generate cache key for agent responses
+   */
+  private generateAgentCacheKey(
+    agentName: string,
+    input: string,
+    context?: Record<string, any>
+  ): string {
+    const contextStr = context ? JSON.stringify(context) : '';
+    return `agent:${agentName}:${this.hashString(input + contextStr)}`;
+  }
+
+  /**
+   * Simple hash function for cache keys
+   */
+  private hashString(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(36);
   }
 
   has(key: string): boolean {
